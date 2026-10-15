@@ -1,5 +1,4 @@
-
-name: Deploy Frontend
+name: Build and Deploy to Kubernetes
 
 on:
   push:
@@ -9,33 +8,42 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  packages: write
 
-concurrency:
-  group: github-pages
-  cancel-in-progress: true
+env:
+  IMAGE_NAME: ghcr.io/manohar-1305/k8s-github-runner-test
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: manohar-runner
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload frontend
-        uses: actions/upload-pages-artifact@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          path: .
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+          kubectl set image deployment/github-runner-frontend \
+            frontend=${IMAGE_NAME}:${GITHUB_SHA} \
+            -n default
+          kubectl rollout status deployment/github-runner-frontend \
+            -n default --timeout=180s
