@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-runner-frontend
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: github-runner-frontend
+  template:
+    metadata:
+      labels:
+        app: github-runner-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/manohar-1305/k8s-github-runner-test:latest
+          ports:
+            - containerPort: 80
